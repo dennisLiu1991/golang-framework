@@ -1,10 +1,11 @@
 package server
 
 import (
-	"fmt"
+	"log"
+	"net"
+
 	"i-rpc/codec"
 	"i-rpc/model"
-	"net"
 )
 
 // Server is rpc server
@@ -23,29 +24,29 @@ func GetDefault() *Server {
 func (s *Server) Start(c chan<- string) {
 	l, err := net.Listen("tcp", ":0")
 	if err != nil {
-		fmt.Printf("【server】start server fail! %v", err)
+		log.Printf("【server】start server fail! %v", err)
 		return
 	}
 	s.Addr = l.Addr().String()
 	s.serve(l)
 
-	fmt.Printf("【server】start server on %s\n", s.Addr)
+	log.Printf("【server】start server on %s", s.Addr)
 	c <- s.Addr
 }
 
 func (s *Server) serve(l net.Listener) {
 	go func() {
 		for {
-			fmt.Printf("【server】server waite for connextion ...\n")
+			log.Printf("【server】server waite for connextion ...")
 			conn, err := l.Accept()
 			if err != nil {
-				fmt.Printf("【server】shutdown server ! serve err %v\n", err)
+				log.Printf("【server】shutdown server ! serve err %v", err)
 				continue
 			}
 			if conn == nil {
 				continue
 			}
-			fmt.Println("【server】 recevie connection!")
+			log.Println("【server】 recevie connection!")
 
 			newCodec := codec.GetCodec(codec.Gob)
 			go s.serveForConn(newCodec(conn))
@@ -55,34 +56,42 @@ func (s *Server) serve(l net.Listener) {
 
 func (s *Server) serveForConn(cc codec.CodeC) {
 	for {
-		req, err := readRequest(cc)
+		req, h, err := readRequest(cc)
 		if err != nil {
 			continue
 		}
-		go s.handleRequest(req, cc)
+		go s.handleRequest(req, h, cc)
 	}
 }
 
-func readRequest(cc codec.CodeC) (model.Request, error) {
+func readRequest(cc codec.CodeC) (model.Request, model.Header, error) {
+	// 先读header
+	var h model.Header
+	if err := cc.Read(&h); err != nil {
+		log.Printf("【server】read header %v", err)
+		return model.Request{}, model.Header{}, err
+	}
+	log.Printf("【server】got header : %v", h)
+
 	var req model.Request
 	if err := cc.Read(&req); err != nil {
-		fmt.Printf("【server】read fail %v\n", err)
-		return req, err
+		log.Printf("【server】read fail %v", err)
+		return req, h, err
 	}
-	fmt.Printf("【server】got request : %s\n", req)
-	return req, nil
+	log.Printf("【server】got request : %s", req)
+	return req, h, nil
 }
 
-func (s *Server) handleRequest(req model.Request, cc codec.CodeC) {
-	s.sendResponse(cc)
+func (s *Server) handleRequest(req model.Request, h model.Header, cc codec.CodeC) {
+	s.sendResponse(cc, h)
 }
 
-func (s *Server) sendResponse(cc codec.CodeC) {
+func (s *Server) sendResponse(cc codec.CodeC, h model.Header) {
 	response := model.Response{
-		ID: "1",
+		ID: "123456789",
 	}
-	if err := cc.Write(&response); err != nil {
-		fmt.Printf("【server】write response  %v", err)
+	if err := cc.Write(&h, &response); err != nil {
+		log.Printf("【server】write response  %v", err)
 		return
 	}
 }

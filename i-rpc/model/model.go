@@ -7,3 +7,9 @@ type Request struct {
 type Response struct {
 	ID string
 }
+
+type Header struct {
+	Service string
+	Method  string
+	CallSeq int
+}

@@ -2,6 +2,8 @@ package main
 
 import (
 	_ "i-rpc/codec"
+	"i-rpc/model"
+	"log"
 
 	"i-rpc/client"
 	"i-rpc/server"
@@ -27,5 +29,11 @@ func startServer() string {
 
 func startClient(addr string) {
 	cli := client.NewClient(addr)
-	cli.Connecte()
+
+	req := model.Request{
+		Name: "abc",
+	}
+	var rsp model.Response
+	err := cli.SendRequest(req, &rsp)
+	log.Printf("client rsp = %v,err = %v", rsp, err)
 }

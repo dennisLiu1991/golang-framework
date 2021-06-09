@@ -5,10 +5,13 @@ import (
 	"encoding/gob"
 	"fmt"
 	"io"
+
+	"i-rpc/model"
 )
 
 type CodeC interface {
-	Write(v interface{}) error
+	Write(h *model.Header, v interface{}) error
+	ReadHeader(h *model.Header) error
 	Read(body interface{}) error
 }
 
@@ -28,7 +31,6 @@ func GetCodec(name string) NewCodecFunc {
 	return codecMap[name]
 }
 
-
 type defaultCodeC struct {
 	conn io.ReadWriteCloser
 	buf  *bufio.Writer
@@ -46,7 +48,11 @@ func NewCodec(conn io.ReadWriteCloser) CodeC {
 	}
 }
 
-func (d *defaultCodeC) Write(v interface{}) (err error) {
+func (d *defaultCodeC) ReadHeader(h *model.Header) error {
+	return d.dc.Decode(h)
+}
+
+func (d *defaultCodeC) Write(h *model.Header, v interface{}) (err error) {
 	defer func() {
 		// flush之后才会将buf里的数据写入conn
 		_ = d.buf.Flush()
@@ -54,8 +60,14 @@ func (d *defaultCodeC) Write(v interface{}) (err error) {
 			_ = d.Close()
 		}
 	}()
+	if err = d.ec.Encode(h); err != nil {
+		return
+	}
+	if err = d.ec.Encode(v); err != nil {
+		return
+	}
 
-	return d.ec.Encode(v)
+	return
 }
 
 func (d *defaultCodeC) Read(v interface{}) error {
